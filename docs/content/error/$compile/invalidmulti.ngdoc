@@ -1,0 +1,9 @@
+@ngdoc error
+@name $compile:invalidmulti
+@fullName Invalid multi transclusion.
+@description
+
+When using a directive that allows multiple transclusion points (e.g. the `transclude` property is set to `multi` in the directive definition), each transcluded element needs to match an `ng-transclude-select` selector in the directive template. Otherwise, it won't be properly appended to the DOM.  
+
+This error occurs when the element does not match `ng-transclude-select` selectors in the directive template.  
+

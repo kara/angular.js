@@ -316,13 +316,16 @@
  * The contents are compiled and provided to the directive as a **transclusion function**. See the
  * {@link $compile#transclusion Transclusion} section below.
  *
- * There are two kinds of transclusion depending upon whether you want to transclude just the contents of the
- * directive's element or the entire element:
+ * There are three kinds of transclusion depending upon whether you want to transclude just the contents of the
+ * directive's element, the entire element, or transclude to multiple points in the directive.
  *
  * * `true` - transclude the content (i.e. the child nodes) of the directive's element.
  * * `'element'` - transclude the whole of the directive's element including any directives on this
  *   element that defined at a lower priority than this directive. When used, the `template`
  *   property is ignored.
+ * * `'multi'` -  allows transclusion into multiple points of the directive's template.  When used, automatically
+ *   appends any transcluded elements that match `ng-transclude-select` selector to the `ng-transclude-select` element
+ *   in the directive template.
  *
  *
  * #### `compile`
@@ -1645,6 +1648,7 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
           templateDirective = previousCompileContext.templateDirective,
           nonTlbTranscludeDirective = previousCompileContext.nonTlbTranscludeDirective,
           hasTranscludeDirective = false,
+          hasMultiTranscludeDirective = false,
           hasTemplate = false,
           hasElementTranscludeDirective = previousCompileContext.hasElementTranscludeDirective,
           $compileNode = templateAttrs.$$element = jqLite(compileNode),
@@ -1737,6 +1741,9 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
                                           nonTlbTranscludeDirective: nonTlbTranscludeDirective
                                         });
           } else {
+            if (directiveValue == 'multi') {
+              hasMultiTranscludeDirective = true;
+            }
             $template = jqLite(jqLiteClone(compileNode)).contents();
             $compileNode.empty(); // clear contents
             childTranscludeFn = compile($template, transcludeFn);
@@ -1833,6 +1840,7 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
       nodeLinkFn.scope = newScopeDirective && newScopeDirective.scope === true;
       nodeLinkFn.transcludeOnThisElement = hasTranscludeDirective;
       nodeLinkFn.elementTranscludeOnThisElement = hasElementTranscludeDirective;
+      nodeLinkFn.multiTranscludeOnThisElement = hasMultiTranscludeDirective;
       nodeLinkFn.templateOnThisElement = hasTemplate;
       nodeLinkFn.transclude = childTranscludeFn;
 
@@ -2027,6 +2035,8 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
         }
         childLinkFn && childLinkFn(scopeToChild, linkNode.childNodes, undefined, boundTranscludeFn);
 
+        if (thisLinkFn.multiTranscludeOnThisElement) multiTransclude($element[0], transcludeFn);
+
         // POSTLINKING
         for (i = postLinkFns.length - 1; i >= 0; i--) {
           linkFn = postLinkFns[i];
@@ -2127,6 +2137,48 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
       }
       return false;
     }
+
+    /**
+     * Matches elements in the transcluded content to elements in the directive template by ng-transclude-selector.
+     * Used in directives that set transclude to 'multi'.
+     *
+     * @param {jqLite} dirElement Main directive element
+     * @param {function()} transcludeFn Transclusion function for the directive
+    **/
+    function multiTransclude(dirElement, transcludeFn) {
+      transcludeFn(transcludeCallback);
+
+      function transcludeCallback(clone) {
+        var target,
+            selector,
+            selectedElements,
+            transcludeTargets = dirElement.querySelectorAll('[ng-transclude-select]'),
+            cloneWrapper = jqLite("<span></span>");
+        cloneWrapper.append(clone);
+
+        for (var i = 0, ii = transcludeTargets.length; i < ii; i++) {
+          target = jqLite(transcludeTargets[i]);
+          selector = target.attr('ng-transclude-select');
+          selectedElements = cloneWrapper[0].querySelectorAll(selector);
+          if (selectedElements.length) target.append(selectedElements);
+        }
+        checkForTranscludeErr(cloneWrapper);
+        cloneWrapper.remove();
+      }
+
+      function checkForTranscludeErr(cloneWrapper) {
+        var orphanElement;
+        if (cloneWrapper.children().length) {
+          orphanElement = jqLite(cloneWrapper.children()[0]);
+          cloneWrapper.children().remove();
+          throw $compileMinErr('invalidmulti',
+              'Invalid transclusion.  Element {0} does not match any known ng-transclude-select targets.',
+              startingTag(orphanElement));
+        }
+
+      }
+    }
+
 
     /**
      * When the element is replaced with HTML template then the new attributes

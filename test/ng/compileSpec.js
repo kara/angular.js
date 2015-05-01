@@ -6311,7 +6311,7 @@ describe('$compile', function() {
       });
 
 
-      it('should terminate compilation only for element trasclusion', function() {
+      it('should terminate compilation only for element transclusion', function() {
         module(function() {
           directive('elementTrans', function(log) {
             return {
@@ -6585,6 +6585,32 @@ describe('$compile', function() {
     });
   });
 
+  describe('multi transclusion', function() {
+    beforeEach(module(function() {
+      directive('transclude', valueFn({
+        transclude: 'multi',
+        scope: {},
+        template: '<div ng-transclude-select="[top]"></div><div ng-transclude-select="[bottom]"></div>'
+      }));
+    }));
+    it('should append ng-transclude-to elements to matching ng-tranclude-ids', inject(function($compile, $rootScope) {
+      var topTarget, bottomTarget;
+      element = $compile(
+        '<div transclude><div bottom>In bottom.</div><div top>In top.</div></div></div>'
+      )($rootScope);
+      topTarget = jqLite(element[0].querySelector('[ng-transclude-select="[top]"]'));
+      bottomTarget = jqLite(element[0].querySelector('[ng-transclude-select="[bottom]"]'));
+      expect(topTarget.text()).toEqual('In top.');
+      expect(bottomTarget.text()).toEqual('In bottom.');
+    }));
+    it('should throw error if transcluded element does not match any ng-transclude-selects', inject(function($compile, $rootScope) {
+      expect(function() {
+        $compile('<div transclude><div>In bottom.</div><div>In top.</div></div>')($rootScope);
+      }).toThrowMinErr(
+        '$compile', 'invalidmulti', 'Invalid transclusion.  Element <div class="ng-scope"> ' +
+        'does not match any known ng-transclude-select targets.');
+    }));
+  });
 
   describe('img[src] sanitization', function() {
 
